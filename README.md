@@ -34,7 +34,7 @@ cd GetRestrictedMessages
 pip install -r requirements.txt
 cp .env.sample .env
 nano .env [ fill the values and exit with ctrl+s and then ctrl+x ]
-python bot.py
+python main.py
 ```
 
 OR
