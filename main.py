@@ -8,6 +8,7 @@
 # WebSite: https://xditya.me
 
 import logging
+import os
 
 from decouple import config
 from telethon import TelegramClient, events
@@ -84,12 +85,21 @@ async def on_new_link(event):
     if not message:
         return await event.reply("Message not found.")
 
+    if message.media:
+        reply_prog = await event.reply("Please wait, downloading media...")
+        file = await message.download_media()
+        await reply_prog.delete()
+    else:
+        file = None
+
     try:
-        await client.send_message(event.chat_id, message.text, file=message.media)
+        await client.send_message(event.chat_id, message.text, file=file)
     except ValueError:
         return await event.reply("Message has no text or media.")
     except BaseException as e:
         return await event.reply(f"Error: {e}")
+
+    os.remove(file)
 
 
 ubot_self = client.loop.run_until_complete(client.get_me())
