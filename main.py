@@ -99,7 +99,10 @@ async def on_new_link(event):
     except BaseException as e:
         return await event.reply(f"Error: {e}")
 
-    os.remove(file)
+    try:
+        os.remove(file)
+    except BaseException:
+        pass
 
 
 ubot_self = client.loop.run_until_complete(client.get_me())
