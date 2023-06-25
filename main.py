@@ -25,11 +25,9 @@ try:
     API_ID = config("API_ID", cast=int)
     API_HASH = config("API_HASH")
     SESSION = config("SESSION")
-    AUTHS = config("AUTHS")
 except BaseException as ex:
     log.info(ex)
 
-AUTH_USERS = [int(x) for x in AUTHS.split(" ")]
 
 log.info("Connecting bot.")
 try:
@@ -42,29 +40,56 @@ except BaseException as e:
 
 
 # functions
-@client.on(events.NewMessage(from_users=AUTH_USERS, func=lambda e: e.is_private))
+@client.on(events.NewMessage(
+    outgoing=True,
+    pattern=r"^.getmsg"))
 async def on_new_link(event):
-    text = event.text
-    if not text:
+    await event.edit("`Checking the link...`")
+    async def download_progress(current, total):
+        percentage = round(
+            current / total * 100, 2)
+        progress = "[{}{}] {}%".format(
+            "▰" * int(percentage / 10),
+            "▱" * (10 - int(percentage / 10)),
+            percentage)
+        await event.edit(
+            "`Downloading media...`\n"
+            f"\n`{progress}`"
+            )
+    async def upload_progress(current, total):
+        percentage = round(
+            current / total * 100, 2)
+        progress = "[{}{}] {}%".format(
+            "▱" * int(percentage / 10),
+            "▰" * (10 - int(percentage / 10)),
+            percentage)
+        await event.edit(
+            "`The media has been downloaded.`\n"
+            "`Sending media...`\n"
+            f"\n`{progress}`"
+            )
+    text = event.text.strip()
+    if len(text.split()) != 2:
+        await event.edit(
+            "`Invalid command format.`"
+            "\n**Usage:** `.getmsg <link>`")
         return
-
-    # idk regex, lets do it the old way
-    if not (text.startswith("https://t.me") or text.startswith("http://t.me")):
+    link = text.split()[1]
+    if not (link.startswith("https://t.me") or link.startswith("http://t.me")):
+        await event.edit("`Invalid link?`")
         return
-
     try:
-        if "/c/" in text:
-            chat_id = text.split("/c/")[1].split("/")[0]
-            message_id = text.split("/c/")[1].split("/")[1]
+        if "/c/" in link:
+            chat_id = link.split("/c/")[1].split("/")[0]
+            message_id = link.split("/c/")[1].split("/")[1]
         else:
-            chat_id = text.split("/")[3]
-            message_id = text.split("/")[4]
+            chat_id = link.split("/")[3]
+            message_id = link.split("/")[4]
     except IndexError:
-        return await event.reply("Invalid link?")
+        return await event.edit("`Invalid link?`")
 
     if not message_id.isdigit():
-        # message ids are always a number
-        return await event.reply("Invalid link?")
+        return await event.edit("`Invalid link?`")
 
     if chat_id.isdigit():
         peer = int(chat_id)
@@ -76,33 +101,44 @@ async def on_new_link(event):
     try:
         message = await client.get_messages(peer, ids=int(message_id))
     except ValueError:
-        return await event.reply(
-            "I cant find the chat! Either it is invalid, or join it first from this account!"
+        return await event.edit(
+            "`I cant find the chat! Either it is invalid, or join it first from this account!`"
         )
     except BaseException as e:
-        return await event.reply(f"Error: {e}")
+        return await event.edit(f"**Error:** `{e}`")
 
     if not message:
-        return await event.reply("Message not found.")
+        return await event.edit("`Message not found.`")
 
+    file = None
     if message.media:
-        reply_prog = await event.reply("Please wait, downloading media...")
-        file = await message.download_media()
-        await reply_prog.delete()
-    else:
-        file = None
-
+        file = await message.download_media(
+            progress_callback=download_progress)
     try:
-        await client.send_message(event.chat_id, message.text, file=file)
+        if file:
+            await client.send_file(
+                event.chat_id,
+                file,
+                caption=message.text,
+                progress_callback=upload_progress)
+        else:
+            await client.send_message(
+                event.chat_id,
+                message.text)
+        await event.delete()
     except ValueError:
-        return await event.reply("Message has no text or media.")
+        await event.edit(
+            "`Message has no text or media.`")
+        return
     except BaseException as e:
-        return await event.reply(f"Error: {e}")
-
-    try:
-        os.remove(file)
-    except BaseException:
-        pass
+        return await event.edit(
+            f"**Error:** `{e}`")
+    finally:
+        try:
+            if file:
+                os.remove(file)
+        except Exception:
+            pass
 
 
 ubot_self = client.loop.run_until_complete(client.get_me())
