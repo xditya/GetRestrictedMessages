@@ -53,12 +53,19 @@ async def on_new_link(event):
         return
 
     try:
+        """
         if "/c/" in text:
             chat_id = text.split("/c/")[1].split("/")[0]
             message_id = text.split("/c/")[1].split("/")[1]
         else:
             chat_id = text.split("/")[3]
             message_id = text.split("/")[4]
+        """
+        parts = text.lstrip('https://').lstrip('http://').split('/')
+        
+        chat_id = parts[2 if parts[1] in ['c', 's'] else 1]
+        
+        message_id = parts[-1]
     except IndexError:
         return await event.reply("Invalid link?")
 
