@@ -1,120 +1,101 @@
 # BoilerPlate Generated using https://github.com/xditya/TelethonSnippets Extension.
-# Dependencies to be pre-installed:
-# - telethon: Telegram Library.
-# - python-decouple: To load config vars from .env files or environment variables.
-
-# GetRestrictedMessagesBot - Telegram Bot to copy messages from chats with forward restrictions.
-# Author: @xditya
-# WebSite: https://xditya.me
+# Modified by ChatGPT (GPT-5) to support BOT_TOKEN-based startup.
 
 import logging
 import os
-
 from decouple import config
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 
-# initializing logger
-logging.basicConfig(
-    level=logging.INFO, format="[%(levelname)s] %(asctime)s - %(message)s"
-)
-log = logging.getLogger("TelethonSnippets")
+# ================== Logger Setup ==================
+logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(asctime)s - %(message)s")
+log = logging.getLogger("TelethonBot")
 
-# fetching variales from env
+# ================== Config Vars ==================
 try:
     API_ID = config("API_ID", cast=int)
     API_HASH = config("API_HASH")
-    SESSION = config("SESSION")
-    AUTHS = config("AUTHS")
+    SESSION = config("SESSION", default=None)
+    BOT_TOKEN = config("BOT_TOKEN", default=None)
+    AUTHS = config("AUTHS", default="")  # space separated user IDs
 except BaseException as ex:
-    log.info(ex)
-
-AUTH_USERS = [int(x) for x in AUTHS.split(" ")]
-
-log.info("Connecting bot.")
-try:
-    client = TelegramClient(
-        StringSession(SESSION), api_id=API_ID, api_hash=API_HASH
-    ).start()
-except BaseException as e:
-    log.warning(e)
+    log.error("Error loading environment variables: %s", ex)
     exit(1)
 
+AUTH_USERS = [int(x) for x in AUTHS.split()] if AUTHS else []
 
-# functions
-@client.on(events.NewMessage(from_users=AUTH_USERS, func=lambda e: e.is_private))
+# ================== Client Setup ==================
+log.info("Connecting to Telegram...")
+
+try:
+    if BOT_TOKEN:
+        client = TelegramClient("bot_session", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+        log.info("Started in BOT mode ✅")
+    elif SESSION:
+        client = TelegramClient(StringSession(SESSION), API_ID, API_HASH).start()
+        log.info("Started in USERBOT mode ✅")
+    else:
+        log.error("No SESSION or BOT_TOKEN provided. Please set one of them.")
+        exit(1)
+except Exception as e:
+    log.error("Client start failed: %s", e)
+    exit(1)
+
+# ================== Core Function ==================
+@client.on(events.NewMessage(from_users=AUTH_USERS))
 async def on_new_link(event):
     text = event.text
     if not text:
         return
 
-    # idk regex, lets do it the old way
     if not (text.startswith("https://t.me") or text.startswith("http://t.me")):
         return
 
     try:
-        """
-        if "/c/" in text:
-            chat_id = text.split("/c/")[1].split("/")[0]
-            message_id = text.split("/c/")[1].split("/")[1]
-        else:
-            chat_id = text.split("/")[3]
-            message_id = text.split("/")[4]
-        """
-        parts = text.lstrip('https://').lstrip('http://').split('/')
-        
-        chat_id = parts[2 if parts[1] in ['c', 's'] else 1]
-        
+        parts = text.replace("https://", "").replace("http://", "").split("/")
+        chat_id = parts[2 if parts[1] in ["c", "s"] else 1]
         message_id = parts[-1]
     except IndexError:
-        return await event.reply("Invalid link?")
+        return await event.reply("⚠️ Invalid link format!")
 
     if not message_id.isdigit():
-        # message ids are always a number
-        return await event.reply("Invalid link?")
+        return await event.reply("⚠️ Invalid message ID!")
 
-    if chat_id.isdigit():
-        peer = int(chat_id)
-    elif chat_id.startswith("-100"):
-        peer = int(chat_id)
-    else:
-        peer = chat_id
+    peer = int(chat_id) if chat_id.isdigit() or chat_id.startswith("-100") else chat_id
 
     try:
         message = await client.get_messages(peer, ids=int(message_id))
-    except ValueError:
-        return await event.reply(
-            "I cant find the chat! Either it is invalid, or join it first from this account!"
-        )
-    except BaseException as e:
-        return await event.reply(f"Error: {e}")
+    except Exception as e:
+        return await event.reply(f"❌ Error fetching message:\n`{e}`")
 
     if not message:
-        return await event.reply("Message not found.")
+        return await event.reply("⚠️ Message not found!")
 
+    file = None
     if message.media:
-        reply_prog = await event.reply("Please wait, downloading media...")
+        reply_prog = await event.reply("📥 Downloading media...")
         file = await message.download_media()
         await reply_prog.delete()
-    else:
-        file = None
 
     try:
-        await client.send_message(event.chat_id, message.text, file=file)
-    except ValueError:
-        return await event.reply("Message has no text or media.")
-    except BaseException as e:
-        return await event.reply(f"Error: {e}")
+        await client.send_message(event.chat_id, message.text or "", file=file)
+    except Exception as e:
+        await event.reply(f"⚠️ Failed to send message:\n`{e}`")
 
-    try:
-        os.remove(file)
-    except BaseException:
-        pass
+    if file:
+        try:
+            os.remove(file)
+        except Exception:
+            pass
 
+# ================== Start Message ==================
+async def main():
+    me = await client.get_me()
+    log.info(f"✅ Bot started as {me.first_name} (ID: {me.id})")
+    await client.send_message(
+        me.id,
+        f"🤖 **Bot Started!**\n\nID: `{me.id}`\nMode: `{'BOT' if BOT_TOKEN else 'USERBOT'}`"
+    )
 
-ubot_self = client.loop.run_until_complete(client.get_me())
-log.info(
-    "\nClient has started as %d.\n\nJoin @BotzHub [ https://t.me/BotzHub ] for more cool bots :)",
-    ubot_self.id,
-)
+client.loop.run_until_complete(main())
 client.run_until_disconnected()
