@@ -70,8 +70,16 @@ async def copy_message(event, message):
     has_preview = isinstance(message.media, types.MessageMediaWebPage)
 
     async def send(file=None):
+        video = message.video if file else None
+        attributes = None
+        if video:
+            # Telegram uses these dimensions to lay out the inline preview.
+            attributes = [
+                attribute for attribute in video.attributes
+                if isinstance(attribute, types.DocumentAttributeVideo)
+            ]
         await event.client.send_message(
-            event.chat_id, message.raw_text or "", file=file,
+            event.chat_id, message.raw_text or "", file=file, attributes=attributes,
             formatting_entities=message.entities or [], parse_mode=None, link_preview=has_preview,
         )
 
