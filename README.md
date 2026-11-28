@@ -9,7 +9,7 @@ To run this project, you will need to add the following environment variables to
 - `API_ID` - Telegram API ID from [my.telegram.org](https://my.telegram.org)
 - `API_HASH` - Telegram API HASH from [my.telegram.org](https://my.telegram.org)
 - `SESSION` - Telethon session string. Get it by running `python sessiongen.py` locally.
-- `AUTHS` - List of telegram user IDs who can use the bot, split by space.
+- `AUTHS` - Whitespace-separated Telegram user IDs. Each listed user can request channel messages using the signed-in account's access.
 
 A sample .env file would look like this:
 ```env
@@ -34,11 +34,11 @@ git clone https://github.com/xditya/GetRestrictedMessages
 cd GetRestrictedMessages
 pip install -r requirements.txt
 cp .env.sample .env
-nano .env [ fill the values and exit with ctrl+s and then ctrl+x ]
+# Fill in .env before starting the client.
 python main.py
 ```
 
-OR
+On Windows, use `Copy-Item .env.sample .env` in PowerShell for the copy step.
 
 You can use other platforms that offer free deployments.
 ## Support
