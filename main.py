@@ -1,4 +1,12 @@
-# GetRestrictedMessagesBot by @xditya
+# BoilerPlate Generated using https://github.com/xditya/TelethonSnippets Extension.
+# Dependencies to be pre-installed:
+# - telethon: Telegram Library.
+# - python-decouple: To load config vars from .env files or environment variables.
+
+# GetRestrictedMessagesBot - Telegram Bot to copy messages from chats with forward restrictions.
+# Author: @xditya
+# WebSite: https://xditya.me
+
 import asyncio
 import logging
 import re
@@ -139,7 +147,10 @@ async def run(api_id, api_hash, session, users):
         account = await client.get_me()
         if account is None:
             raise SystemExit("SESSION is no longer authorized. Generate a new one with sessiongen.py.")
-        log.info("Client started as %d.", account.id)
+        log.info(
+            "\nClient has started as %d.\n\nJoin @BotzHub [ https://t.me/BotzHub ] for more cool bots :)",
+            account.id,
+        )
         await client.run_until_disconnected()
     finally:
         await client.disconnect()
